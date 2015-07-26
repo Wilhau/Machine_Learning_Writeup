@@ -1,0 +1,73 @@
+---
+title: "Machine Learning Project Write-up"
+output: html_document
+---
+
+## Backgroung
+This project uses data made available from the Human Activity Recognition project (http://groupware.les.inf.puc-rio.br/har) and aims to develop a model to predict how well a person lift a dumbbell from the data collected through various sensors on the body as well as the dumbbell. The "correctness" of the weight lifting exercise is categorized in 5 classes, represented from "A" to "E" respectively. Only class "A" is considered correct. For more detail description of the  HAR project and its data, please refer to the document at http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf.
+
+## Data Preparation
+The original data set has 160 columns. As common problem, a lot of the columns have missing value, or NA. The table below shows 67 out of 160 columns have missing value. Some columns have most or all of the values missing. Another problem is that some columns have no or very low variance (i.e. near zero variance) of values. Both challeges cause issues or reduce the accuracy of the model.
+
+In order to test the prediction model, the data is splited into a training set and a validation set. Only the training set is used to develop the model. The validation set is used to estimate the out-of-sample error.
+
+### Near Zero Variance
+I first address the near zero variance issue using the nearZeroVar() function from the caret package. This function identifies the columns with low variance of values. Then, I removed those columns from the data set.
+
+```{r eval=FALSE}
+nzvTraining <- nearZeroVar(pmlTraining)
+pmlTraining2 <- pmlTraining[, -nzvTraining]
+
+```
+
+### Divide Data into 2 Sets
+80% of data is randomly assigned to the training set, while 20% of the data is assigned to validation set.
+
+```{r eval=FALSE}
+set.seed(12456)
+inTrain <- createDataPartition(y = pmlTraining2$classe, p=0.8, list=FALSE )
+trainSet <- pmlTraining2[inTrain, -c(1:6)]
+validateSet <- pmlTraining2[-inTrain, -c(1:6)]
+```
+
+### Impute Missing Value
+The K-nearest neighors method is used to impute missing values. Like applying other processes using the preProcess() function, only the training set is used to develop the preProcess object. 
+
+```{r eval=FALSE}
+preObj <- preProcess(trainSet[, -length(trainSet)], method="knnImpute")
+trainSet2 <- predict(preObj, trainSet[, -length(trainSet)])
+trainSet2$classe  <- trainSet$classe
+validateSet2 <- predict(preObj, validateSet[, -length(validateSet)])
+validateSet2$classe  <- validateSet$classe
+```
+
+## Model Training and Validation
+I developed both a Classification Tree and a Random Forest models for comparison. Only the training set is used to develop the models. The validation set is then used to estimate the out-of-sample error of each model.  
+
+### Simple Tree
+```{r eval=FALSE}
+modelTree <- train(classe~., data = trainSet2, method = "rpart" )
+predTree  <- predict(modelTree, validateSet2)
+cmTree <- confusionMatrix(predTree, validateSet2$classe)
+```
+```{r echo=FALSE}
+cmTree <- readRDS("cmTree.rds")
+cmTree
+```
+
+### Random Forest
+```{r eval=FALSE}
+modelRF <- train(classe~., data = trainSet2, method = "rf")
+predRF <- predict(modelRF, validateSet2)
+cmRF <- confusionMatrix(predRF, validateSet2$classe)
+```
+```{r echo=FALSE}
+cmRF <- readRDS("cmRF.rds")
+cmRF
+```
+
+## Conclusion
+As we can see from the confusion matrix, Random Forest does a much better job, with an accuracy rate of 99% versus 55% from the Tree model. Therefore, the Random Forest model is chosen as the prediction model. 
+
+
+
